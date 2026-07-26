@@ -8,21 +8,24 @@ x-honcho-common: &honcho-common
 
   restart: unless-stopped
 
-  entrypoint:
-    ["sh", "docker/entrypoint.sh"]
-
   environment:
 
+    # Database
     DB_CONNECTION_URI: ${DB_CONNECTION_URI}
 
+    # Disable Redis
+    CACHE_ENABLED: "false"
+
+    # Authentication
     AUTH_JWT_SECRET: ${AUTH_JWT_SECRET}
 
+    # LLM providers
     LLM_OPENAI_API_KEY: ${LLM_OPENAI_API_KEY}
     LLM_ANTHROPIC_API_KEY: ${LLM_ANTHROPIC_API_KEY}
     LLM_GEMINI_API_KEY: ${LLM_GEMINI_API_KEY}
 
+    # Runtime
     LOG_LEVEL: ${LOG_LEVEL:-INFO}
-    ENVIRONMENT: production
 
 
 services:
@@ -33,52 +36,73 @@ services:
 
     container_name: honcho-api
 
-    command:
+    entrypoint:
       [
-        "uvicorn",
-        "src.main:app",
-        "--host",
-        "0.0.0.0",
-        "--port",
-        "8000"
+        "sh",
+        "docker/entrypoint.sh"
       ]
 
     expose:
       - "8000"
 
+    healthcheck:
+      test:
+        [
+          "CMD",
+          "/app/.venv/bin/python",
+          "-c",
+          "import urllib.request; urllib.request.urlopen('http://localhost:8000/health', timeout=2).read()"
+        ]
+
+      interval: 5s
+      timeout: 5s
+      retries: 5
+      start_period: 20s
+
+
     volumes:
-      - honcho_data:/app/data
+      - honcho-data:/app/data
+
 
     networks:
       - coolify
 
 
-  honcho-worker:
+
+  honcho-deriver:
 
     <<: *honcho-common
 
-    container_name: honcho-worker
+    container_name: honcho-deriver
 
-    command:
+
+    entrypoint:
       [
-        "python",
+        "/app/.venv/bin/python",
         "-m",
         "src.deriver"
       ]
 
-    volumes:
-      - honcho_data:/app/data
 
     depends_on:
-      - honcho-api
+
+      honcho-api:
+        condition: service_healthy
+
+
+    volumes:
+      - honcho-data:/app/data
+
 
     networks:
       - coolify
 
 
+
 volumes:
 
-  honcho_data:
+  honcho-data:
+
 
 
 networks:
