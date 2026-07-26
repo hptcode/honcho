@@ -1,0 +1,87 @@
+version: "3.9"
+
+x-honcho-common: &honcho-common
+
+  build:
+    context: .
+    dockerfile: Dockerfile
+
+  restart: unless-stopped
+
+  entrypoint:
+    ["sh", "docker/entrypoint.sh"]
+
+  environment:
+
+    DB_CONNECTION_URI: ${DB_CONNECTION_URI}
+
+    AUTH_JWT_SECRET: ${AUTH_JWT_SECRET}
+
+    LLM_OPENAI_API_KEY: ${LLM_OPENAI_API_KEY}
+    LLM_ANTHROPIC_API_KEY: ${LLM_ANTHROPIC_API_KEY}
+    LLM_GEMINI_API_KEY: ${LLM_GEMINI_API_KEY}
+
+    LOG_LEVEL: ${LOG_LEVEL:-INFO}
+    ENVIRONMENT: production
+
+
+services:
+
+  honcho-api:
+
+    <<: *honcho-common
+
+    container_name: honcho-api
+
+    command:
+      [
+        "uvicorn",
+        "src.main:app",
+        "--host",
+        "0.0.0.0",
+        "--port",
+        "8000"
+      ]
+
+    expose:
+      - "8000"
+
+    volumes:
+      - honcho_data:/app/data
+
+    networks:
+      - coolify
+
+
+  honcho-worker:
+
+    <<: *honcho-common
+
+    container_name: honcho-worker
+
+    command:
+      [
+        "python",
+        "-m",
+        "src.deriver"
+      ]
+
+    volumes:
+      - honcho_data:/app/data
+
+    depends_on:
+      - honcho-api
+
+    networks:
+      - coolify
+
+
+volumes:
+
+  honcho_data:
+
+
+networks:
+
+  coolify:
+    external: true
