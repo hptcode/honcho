@@ -10,21 +10,16 @@ x-honcho-common: &honcho-common
 
   environment:
 
-    # Database
     DB_CONNECTION_URI: ${DB_CONNECTION_URI}
 
-    # Disable Redis
     CACHE_ENABLED: "false"
 
-    # Authentication
     AUTH_JWT_SECRET: ${AUTH_JWT_SECRET}
 
-    # LLM providers
     LLM_OPENAI_API_KEY: ${LLM_OPENAI_API_KEY}
     LLM_ANTHROPIC_API_KEY: ${LLM_ANTHROPIC_API_KEY}
     LLM_GEMINI_API_KEY: ${LLM_GEMINI_API_KEY}
 
-    # Runtime
     LOG_LEVEL: ${LOG_LEVEL:-INFO}
 
 
@@ -45,6 +40,7 @@ services:
     expose:
       - "8000"
 
+
     healthcheck:
       test:
         [
@@ -54,14 +50,10 @@ services:
           "import urllib.request; urllib.request.urlopen('http://localhost:8000/health', timeout=2).read()"
         ]
 
-      interval: 5s
+      interval: 10s
       timeout: 5s
       retries: 5
-      start_period: 20s
-
-
-    volumes:
-      - honcho-data:/app/data
+      start_period: 30s
 
 
     networks:
@@ -90,18 +82,8 @@ services:
         condition: service_healthy
 
 
-    volumes:
-      - honcho-data:/app/data
-
-
     networks:
       - coolify
-
-
-
-volumes:
-
-  honcho-data:
 
 
 
