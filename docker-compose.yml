@@ -10,20 +10,119 @@ x-honcho-common: &honcho-common
 
   environment:
 
+    ####################################################
+    # Database
+    ####################################################
+
     DB_CONNECTION_URI: ${DB_CONNECTION_URI}
+
+
+    ####################################################
+    # Cache
+    ####################################################
 
     CACHE_ENABLED: "false"
 
+
+    ####################################################
+    # Authentication
+    ####################################################
+
+    AUTH_USE_AUTH: ${AUTH_USE_AUTH:-false}
     AUTH_JWT_SECRET: ${AUTH_JWT_SECRET}
 
-    LLM_OPENAI_API_KEY: ${LLM_OPENAI_API_KEY}
-    LLM_ANTHROPIC_API_KEY: ${LLM_ANTHROPIC_API_KEY}
-    LLM_GEMINI_API_KEY: ${LLM_GEMINI_API_KEY}
+
+    ####################################################
+    # Logging
+    ####################################################
 
     LOG_LEVEL: ${LOG_LEVEL:-INFO}
 
 
+    ####################################################
+    # NVIDIA NIM LLM Provider
+    ####################################################
+
+    LLM_OPENAI_API_KEY: ${NVIDIA_API_KEY}
+
+
+    ####################################################
+    # Embedding Model
+    # HuggingFace TEI server
+    ####################################################
+
+    EMBEDDING_MODEL_CONFIG__TRANSPORT: openai
+    EMBEDDING_MODEL_CONFIG__MODEL: BAAI/bge-m3
+    EMBEDDING_MODEL_CONFIG__OVERRIDES__BASE_URL: http://embedding-server:8080/v1
+
+
+    ####################################################
+    # Deriver
+    ####################################################
+
+    DERIVER_MODEL_CONFIG__TRANSPORT: openai
+    DERIVER_MODEL_CONFIG__MODEL: z-ai/glm-5.2
+    DERIVER_MODEL_CONFIG__OVERRIDES__BASE_URL: https://integrate.api.nvidia.com/v1
+
+
+    ####################################################
+    # Summary
+    ####################################################
+
+    SUMMARY_MODEL_CONFIG__TRANSPORT: openai
+    SUMMARY_MODEL_CONFIG__MODEL: z-ai/glm-5.2
+    SUMMARY_MODEL_CONFIG__OVERRIDES__BASE_URL: https://integrate.api.nvidia.com/v1
+
+
+    ####################################################
+    # Dream
+    ####################################################
+
+    DREAM_DEDUCTION_MODEL_CONFIG__TRANSPORT: openai
+    DREAM_DEDUCTION_MODEL_CONFIG__MODEL: z-ai/glm-5.2
+    DREAM_DEDUCTION_MODEL_CONFIG__OVERRIDES__BASE_URL: https://integrate.api.nvidia.com/v1
+
+    DREAM_INDUCTION_MODEL_CONFIG__TRANSPORT: openai
+    DREAM_INDUCTION_MODEL_CONFIG__MODEL: z-ai/glm-5.2
+    DREAM_INDUCTION_MODEL_CONFIG__OVERRIDES__BASE_URL: https://integrate.api.nvidia.com/v1
+
+
+    ####################################################
+    # Dialectic Levels
+    ####################################################
+
+    DIALECTIC_LEVELS__minimal__MODEL_CONFIG__TRANSPORT: openai
+    DIALECTIC_LEVELS__minimal__MODEL_CONFIG__MODEL: z-ai/glm-5.2
+    DIALECTIC_LEVELS__minimal__MODEL_CONFIG__OVERRIDES__BASE_URL: https://integrate.api.nvidia.com/v1
+
+
+    DIALECTIC_LEVELS__low__MODEL_CONFIG__TRANSPORT: openai
+    DIALECTIC_LEVELS__low__MODEL_CONFIG__MODEL: z-ai/glm-5.2
+    DIALECTIC_LEVELS__low__MODEL_CONFIG__OVERRIDES__BASE_URL: https://integrate.api.nvidia.com/v1
+
+
+    DIALECTIC_LEVELS__medium__MODEL_CONFIG__TRANSPORT: openai
+    DIALECTIC_LEVELS__medium__MODEL_CONFIG__MODEL: z-ai/glm-5.2
+    DIALECTIC_LEVELS__medium__MODEL_CONFIG__OVERRIDES__BASE_URL: https://integrate.api.nvidia.com/v1
+
+
+    DIALECTIC_LEVELS__high__MODEL_CONFIG__TRANSPORT: openai
+    DIALECTIC_LEVELS__high__MODEL_CONFIG__MODEL: z-ai/glm-5.2
+    DIALECTIC_LEVELS__high__MODEL_CONFIG__OVERRIDES__BASE_URL: https://integrate.api.nvidia.com/v1
+
+
+    DIALECTIC_LEVELS__max__MODEL_CONFIG__TRANSPORT: openai
+    DIALECTIC_LEVELS__max__MODEL_CONFIG__MODEL: z-ai/glm-5.2
+    DIALECTIC_LEVELS__max__MODEL_CONFIG__OVERRIDES__BASE_URL: https://integrate.api.nvidia.com/v1
+
+
+
 services:
+
+
+  ####################################################
+  # Honcho API
+  ####################################################
 
   honcho-api:
 
@@ -31,17 +130,26 @@ services:
 
     container_name: honcho-api
 
+
     entrypoint:
       [
         "sh",
         "docker/entrypoint.sh"
       ]
 
+
     expose:
       - "8000"
 
 
+    depends_on:
+
+      embedding-server:
+        condition: service_started
+
+
     healthcheck:
+
       test:
         [
           "CMD",
@@ -60,6 +168,10 @@ services:
       - coolify
 
 
+
+  ####################################################
+  # Honcho Deriver Worker
+  ####################################################
 
   honcho-deriver:
 
@@ -82,12 +194,56 @@ services:
         condition: service_healthy
 
 
+      embedding-server:
+        condition: service_started
+
+
     networks:
       - coolify
 
 
 
+  ####################################################
+  # HuggingFace Text Embeddings Inference
+  ####################################################
+
+  embedding-server:
+
+    image: ghcr.io/huggingface/text-embeddings-inference:cpu-latest
+
+
+    container_name: honcho-embeddings
+
+
+    command:
+
+      - "--model-id"
+      - "BAAI/bge-m3"
+
+      - "--port"
+      - "8080"
+
+
+    restart: unless-stopped
+
+
+    expose:
+
+      - "8080"
+
+
+    networks:
+
+      - coolify
+
+
+
+####################################################
+# Existing Coolify Network
+####################################################
+
 networks:
 
   coolify:
+
     external: true
