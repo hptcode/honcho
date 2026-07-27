@@ -32,6 +32,9 @@
 #   OPENROUTER_API_KEY  — your OpenRouter API key (openrouter.ai/keys)
 #   NVIDIA_API_KEY      — your NVIDIA NIM API key (build.nvidia.com → Get API Key)
 #   DB_CONNECTION_URI   — postgresql+psycopg://honcho:<pw>@<db-hostname>:5432/honcho
+#    note for the db-hostname, check on your vps using:
+#        docker ps --format "table {{.Names}}\t{{.Image}}\t{{.Status}}" | grep -i pg
+#    (coolify randomly assigned a hostname if using it's managed databases)
 #
 # All secrets live in Coolify's environment vault — nothing is hardcoded here.
 # =============================================================================
