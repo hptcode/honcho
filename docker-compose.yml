@@ -77,15 +77,23 @@ x-honcho-common: &honcho-common
     LLM_OPENAI_API_KEY: ${OPENROUTER_API_KEY}
 
     # ==================================================
+    # NVIDIA API key — injected as a container env var so Honcho's
+    # embedding module can read it at runtime via API_KEY_ENV below.
+    # Do NOT wrap this in ${} on the API_KEY_ENV line — that line
+    # is the *name* of the env var to look up, not a value to substitute.
+    NVIDIA_API_KEY: ${NVIDIA_API_KEY}
+
+    # ==================================================
     # Embedding Model — via NVIDIA NIM
     # ==================================================
     # bge-m3 produces 1024-dimensional vectors.
-    # API_KEY_ENV overrides which env var Honcho reads for the API key,
-    # so embeddings use NVIDIA_API_KEY instead of LLM_OPENAI_API_KEY.
+    # API_KEY_ENV tells Honcho which env var to read for the embedding
+    # API key.  It reads os.environ["NVIDIA_API_KEY"] at runtime.
+    # This must be the bare variable name, NOT ${NVIDIA_API_KEY}.
     EMBEDDING_MODEL_CONFIG__TRANSPORT: openai
     EMBEDDING_MODEL_CONFIG__MODEL: baai/bge-m3
     EMBEDDING_MODEL_CONFIG__OVERRIDES__BASE_URL: https://integrate.api.nvidia.com/v1
-    EMBEDDING_MODEL_CONFIG__OVERRIDES__API_KEY_ENV: ${NVIDIA_API_KEY}
+    EMBEDDING_MODEL_CONFIG__OVERRIDES__API_KEY_ENV: NVIDIA_API_KEY
     EMBEDDING_VECTOR_DIMENSIONS: "1024"
     EMBED_MESSAGES: "true"
 
