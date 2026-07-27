@@ -1,249 +1,187 @@
-version: "3.9"
+# =============================================================================
+# Honcho Self-Hosted — Coolify Docker Compose
+# =============================================================================
+# Architecture: 2 services (API + Deriver worker)
+# Database:     External — Coolify-managed PGVector 17 (same Coolify project)
+# Embeddings:   NVIDIA NIM (baai/bge-m3) — no local embedding container
+# Reasoning:    OpenRouter (z-ai/glm-5.2) — OpenAI-compatible endpoint
+# Cache:        Disabled (no Redis)
+# Network:      Coolify's predefined external network
+#
+# -----------------------------------------------------------------------------
+# Two API keys are required:
+#   OPENROUTER_API_KEY  — for all LLM/reasoning calls (OpenRouter)
+#   NVIDIA_API_KEY      — for embeddings only (NVIDIA NIM bge-m3)
+#
+# Honcho's openai transport reads LLM_OPENAI_API_KEY by default.  We point
+# that at the OpenRouter key.  The embedding module overrides API_KEY_ENV to
+# NVIDIA_API_KEY so it reads the NVIDIA key instead.
+#
+# -----------------------------------------------------------------------------
+# Prerequisites on the Coolify-managed PGVector 17 database:
+#   1. CREATE DATABASE honcho;
+#      CREATE USER honcho WITH PASSWORD '<strong-password>';
+#      GRANT ALL PRIVILEGES ON DATABASE honcho TO honcho;
+#   2. \c honcho
+#      CREATE EXTENSION IF NOT EXISTS vector;
+#   3. Note the database container's hostname on the coolify network
+#      (Coolify → Database resource → Connection Info).
+#
+# -----------------------------------------------------------------------------
+# Coolify environment variables to set (Environment editor):
+#   OPENROUTER_API_KEY  — your OpenRouter API key (openrouter.ai/keys)
+#   NVIDIA_API_KEY      — your NVIDIA NIM API key (build.nvidia.com → Get API Key)
+#   DB_CONNECTION_URI   — postgresql+psycopg://honcho:<pw>@<db-hostname>:5432/honcho
+#
+# All secrets live in Coolify's environment vault — nothing is hardcoded here.
+# =============================================================================
 
 x-honcho-common: &honcho-common
-
   build:
     context: .
     dockerfile: Dockerfile
-
   restart: unless-stopped
-
   environment:
-
-    ####################################################
-    # Database
-    ####################################################
-
+    # ==================================================
+    # Database (external Coolify-managed PGVector 17)
+    # ==================================================
+    # Must use postgresql+psycopg prefix (SQLAlchemy requirement).
     DB_CONNECTION_URI: ${DB_CONNECTION_URI}
+    VECTOR_STORE_TYPE: pgvector
+    VECTOR_STORE_MIGRATED: "false"
 
-
-    ####################################################
-    # Cache
-    ####################################################
-
+    # ==================================================
+    # Cache — disabled (no Redis)
+    # ==================================================
     CACHE_ENABLED: "false"
 
-
-    ####################################################
+    # ==================================================
     # Authentication
-    ####################################################
-
+    # ==================================================
+    # Auth is OFF — we rely on the Coolify private network for isolation.
+    # Do NOT expose port 8000 to the public internet without enabling auth.
     AUTH_USE_AUTH: ${AUTH_USE_AUTH:-false}
-    AUTH_JWT_SECRET: ${AUTH_JWT_SECRET}
+    # AUTH_JWT_SECRET: ${AUTH_JWT_SECRET}
+    # ^ Uncomment if you later set AUTH_USE_AUTH=true
 
-
-    ####################################################
+    # ==================================================
     # Logging
-    ####################################################
-
+    # ==================================================
     LOG_LEVEL: ${LOG_LEVEL:-INFO}
 
+    # ==================================================
+    # LLM Provider — OpenRouter (OpenAI-compatible endpoint)
+    # ==================================================
+    # LLM_OPENAI_API_KEY is the default key for the "openai" transport.
+    # We set it to the OpenRouter key — all reasoning modules inherit it.
+    LLM_OPENAI_API_KEY: ${OPENROUTER_API_KEY}
 
-    ####################################################
-    # NVIDIA NIM LLM Provider
-    ####################################################
-
-    LLM_OPENAI_API_KEY: ${NVIDIA_API_KEY}
-
-
-    ####################################################
-    # Embedding Model
-    # HuggingFace TEI server
-    ####################################################
-
+    # ==================================================
+    # Embedding Model — via NVIDIA NIM
+    # ==================================================
+    # bge-m3 produces 1024-dimensional vectors.
+    # API_KEY_ENV overrides which env var Honcho reads for the API key,
+    # so embeddings use NVIDIA_API_KEY instead of LLM_OPENAI_API_KEY.
     EMBEDDING_MODEL_CONFIG__TRANSPORT: openai
-    EMBEDDING_MODEL_CONFIG__MODEL: BAAI/bge-m3
-    EMBEDDING_MODEL_CONFIG__OVERRIDES__BASE_URL: http://embedding-server:8080/v1
+    EMBEDDING_MODEL_CONFIG__MODEL: baai/bge-m3
+    EMBEDDING_MODEL_CONFIG__OVERRIDES__BASE_URL: https://integrate.api.nvidia.com/v1
+    EMBEDDING_MODEL_CONFIG__OVERRIDES__API_KEY_ENV: NVIDIA_API_KEY
+    EMBEDDING_VECTOR_DIMENSIONS: "1024"
+    EMBED_MESSAGES: "true"
 
-
-    ####################################################
-    # Deriver
-    ####################################################
-
+    # ==================================================
+    # Deriver (background reasoning worker) → OpenRouter
+    # ==================================================
     DERIVER_MODEL_CONFIG__TRANSPORT: openai
     DERIVER_MODEL_CONFIG__MODEL: z-ai/glm-5.2
-    DERIVER_MODEL_CONFIG__OVERRIDES__BASE_URL: https://integrate.api.nvidia.com/v1
+    DERIVER_MODEL_CONFIG__OVERRIDES__BASE_URL: https://openrouter.ai/api/v1
+    DERIVER_MODEL_CONFIG__STRUCTURED_OUTPUT_MODE: json_object
 
-
-    ####################################################
-    # Summary
-    ####################################################
-
+    # ==================================================
+    # Summary → OpenRouter
+    # ==================================================
     SUMMARY_MODEL_CONFIG__TRANSPORT: openai
     SUMMARY_MODEL_CONFIG__MODEL: z-ai/glm-5.2
-    SUMMARY_MODEL_CONFIG__OVERRIDES__BASE_URL: https://integrate.api.nvidia.com/v1
+    SUMMARY_MODEL_CONFIG__OVERRIDES__BASE_URL: https://openrouter.ai/api/v1
 
-
-    ####################################################
-    # Dream
-    ####################################################
-
+    # ==================================================
+    # Dream (consolidation pass) → OpenRouter
+    # ==================================================
     DREAM_DEDUCTION_MODEL_CONFIG__TRANSPORT: openai
     DREAM_DEDUCTION_MODEL_CONFIG__MODEL: z-ai/glm-5.2
-    DREAM_DEDUCTION_MODEL_CONFIG__OVERRIDES__BASE_URL: https://integrate.api.nvidia.com/v1
-
+    DREAM_DEDUCTION_MODEL_CONFIG__OVERRIDES__BASE_URL: https://openrouter.ai/api/v1
     DREAM_INDUCTION_MODEL_CONFIG__TRANSPORT: openai
     DREAM_INDUCTION_MODEL_CONFIG__MODEL: z-ai/glm-5.2
-    DREAM_INDUCTION_MODEL_CONFIG__OVERRIDES__BASE_URL: https://integrate.api.nvidia.com/v1
+    DREAM_INDUCTION_MODEL_CONFIG__OVERRIDES__BASE_URL: https://openrouter.ai/api/v1
 
-
-    ####################################################
-    # Dialectic Levels
-    ####################################################
-
+    # ==================================================
+    # Dialectic reasoning levels (minimal → max) → OpenRouter
+    # ==================================================
     DIALECTIC_LEVELS__minimal__MODEL_CONFIG__TRANSPORT: openai
     DIALECTIC_LEVELS__minimal__MODEL_CONFIG__MODEL: z-ai/glm-5.2
-    DIALECTIC_LEVELS__minimal__MODEL_CONFIG__OVERRIDES__BASE_URL: https://integrate.api.nvidia.com/v1
-
+    DIALECTIC_LEVELS__minimal__MODEL_CONFIG__OVERRIDES__BASE_URL: https://openrouter.ai/api/v1
 
     DIALECTIC_LEVELS__low__MODEL_CONFIG__TRANSPORT: openai
     DIALECTIC_LEVELS__low__MODEL_CONFIG__MODEL: z-ai/glm-5.2
-    DIALECTIC_LEVELS__low__MODEL_CONFIG__OVERRIDES__BASE_URL: https://integrate.api.nvidia.com/v1
-
+    DIALECTIC_LEVELS__low__MODEL_CONFIG__OVERRIDES__BASE_URL: https://openrouter.ai/api/v1
 
     DIALECTIC_LEVELS__medium__MODEL_CONFIG__TRANSPORT: openai
     DIALECTIC_LEVELS__medium__MODEL_CONFIG__MODEL: z-ai/glm-5.2
-    DIALECTIC_LEVELS__medium__MODEL_CONFIG__OVERRIDES__BASE_URL: https://integrate.api.nvidia.com/v1
-
+    DIALECTIC_LEVELS__medium__MODEL_CONFIG__OVERRIDES__BASE_URL: https://openrouter.ai/api/v1
 
     DIALECTIC_LEVELS__high__MODEL_CONFIG__TRANSPORT: openai
     DIALECTIC_LEVELS__high__MODEL_CONFIG__MODEL: z-ai/glm-5.2
-    DIALECTIC_LEVELS__high__MODEL_CONFIG__OVERRIDES__BASE_URL: https://integrate.api.nvidia.com/v1
-
+    DIALECTIC_LEVELS__high__MODEL_CONFIG__OVERRIDES__BASE_URL: https://openrouter.ai/api/v1
 
     DIALECTIC_LEVELS__max__MODEL_CONFIG__TRANSPORT: openai
     DIALECTIC_LEVELS__max__MODEL_CONFIG__MODEL: z-ai/glm-5.2
-    DIALECTIC_LEVELS__max__MODEL_CONFIG__OVERRIDES__BASE_URL: https://integrate.api.nvidia.com/v1
+    DIALECTIC_LEVELS__max__MODEL_CONFIG__OVERRIDES__BASE_URL: https://openrouter.ai/api/v1
 
-
+    # ==================================================
+    # Sentry — disabled
+    # ==================================================
+    SENTRY_ENABLED: "false"
+  networks:
+    - coolify
 
 services:
 
-
   ####################################################
-  # Honcho API
+  # Honcho API Server (FastAPI on port 8000)
   ####################################################
-
   honcho-api:
-
     <<: *honcho-common
-
     container_name: honcho-api
-
-
-    entrypoint:
-      [
-        "sh",
-        "docker/entrypoint.sh"
-      ]
-
-
+    entrypoint: ["sh", "docker/entrypoint.sh"]
     expose:
       - "8000"
-
-
-    depends_on:
-
-      embedding-server:
-        condition: service_started
-
-
     healthcheck:
-
       test:
         [
           "CMD",
           "/app/.venv/bin/python",
           "-c",
-          "import urllib.request; urllib.request.urlopen('http://localhost:8000/health', timeout=2).read()"
+          "import urllib.request; urllib.request.urlopen('http://localhost:8000/health', timeout=2).read()",
         ]
-
       interval: 10s
       timeout: 5s
       retries: 5
-      start_period: 30s
-
-
-    networks:
-      - coolify
-
-
+      start_period: 60s
 
   ####################################################
   # Honcho Deriver Worker
   ####################################################
-
   honcho-deriver:
-
     <<: *honcho-common
-
     container_name: honcho-deriver
-
-
-    entrypoint:
-      [
-        "/app/.venv/bin/python",
-        "-m",
-        "src.deriver"
-      ]
-
-
+    entrypoint: ["/app/.venv/bin/python", "-m", "src.deriver"]
     depends_on:
-
       honcho-api:
         condition: service_healthy
 
-
-      embedding-server:
-        condition: service_started
-
-
-    networks:
-      - coolify
-
-
-
-  ####################################################
-  # HuggingFace Text Embeddings Inference
-  ####################################################
-
-  embedding-server:
-
-    image: ghcr.io/huggingface/text-embeddings-inference:cpu-latest
-
-
-    container_name: honcho-embeddings
-
-
-    command:
-
-      - "--model-id"
-      - "BAAI/bge-m3"
-
-      - "--port"
-      - "8080"
-
-
-    restart: unless-stopped
-
-
-    expose:
-
-      - "8080"
-
-
-    networks:
-
-      - coolify
-
-
-
 ####################################################
-# Existing Coolify Network
+# Networks — Coolify's predefined external network
 ####################################################
-
 networks:
-
   coolify:
-
     external: true
