@@ -39,7 +39,7 @@
 x-honcho-common: &honcho-common
   image: honcho:latest
   build:
-    context: https://github.com/patrickho/honcho.git#main
+    context: https://github.com/hptcode/honcho.git#main
     dockerfile: Dockerfile
   restart: unless-stopped
   environment:
