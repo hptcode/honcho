@@ -38,6 +38,7 @@
 
 x-honcho-common: &honcho-common
   image: honcho:latest
+  pull_policy: never
   build:
     context: https://github.com/hptcode/honcho.git#main
     dockerfile: Dockerfile
