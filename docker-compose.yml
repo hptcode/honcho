@@ -1,5 +1,5 @@
 # =============================================================================
-# Honcho Self-Hosted — Coolify Docker Compose
+# Honcho Self-Hosted — Coolify Docker Compose - by Patrick Ho
 # =============================================================================
 # Architecture: 2 services (API + Deriver worker)
 # Database:     External — Coolify-managed PGVector 17 (same Coolify project)
