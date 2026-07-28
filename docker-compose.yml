@@ -3,8 +3,9 @@
 # =============================================================================
 # Architecture: 2 services (API + Deriver worker)
 # Database:     External — Coolify-managed PGVector 17 (same Coolify project)
-# Embeddings:   NVIDIA NIM (baai/bge-m3) — no local embedding container
-# Reasoning:    OpenRouter (z-ai/glm-5.2) — OpenAI-compatible endpoint
+# Embeddings:   NVIDIA NIM (baai/bge-m3) — OpenRouter has no embedding models
+# Reasoning:    OpenRouter (qwen/qwen3.7-plus for dialectic/summary/dream)
+# Deriver:      OpenRouter (qwen/qwen3.7-flash — lighter, cheaper for bg work)
 # Cache:        Disabled (no Redis)
 # Network:      Coolify's predefined external network
 #
@@ -32,9 +33,6 @@
 #   OPENROUTER_API_KEY  — your OpenRouter API key (openrouter.ai/keys)
 #   NVIDIA_API_KEY      — your NVIDIA NIM API key (build.nvidia.com → Get API Key)
 #   DB_CONNECTION_URI   — postgresql+psycopg://honcho:<pw>@<db-hostname>:5432/honcho
-#    note for the db-hostname, check on your vps using:
-#        docker ps --format "table {{.Names}}\t{{.Image}}\t{{.Status}}" | grep -i pg
-#    (coolify randomly assigned a hostname if using it's managed databases)
 #
 # All secrets live in Coolify's environment vault — nothing is hardcoded here.
 # =============================================================================
@@ -43,7 +41,7 @@ x-honcho-common: &honcho-common
   image: honcho:latest
   pull_policy: never
   build:
-    context: https://github.com/hptcode/honcho.git#main
+    context: https://github.com/plastic-labs/honcho.git#main
     dockerfile: Dockerfile
   restart: unless-stopped
   environment:
@@ -104,50 +102,51 @@ x-honcho-common: &honcho-common
 
     # ==================================================
     # Deriver (background reasoning worker) → OpenRouter
+    # Uses Qwen3.7 Flash — lighter and cheaper for background work.
     # ==================================================
     DERIVER_MODEL_CONFIG__TRANSPORT: openai
-    DERIVER_MODEL_CONFIG__MODEL: z-ai/glm-5.2
+    DERIVER_MODEL_CONFIG__MODEL: qwen/qwen3.7-flash
     DERIVER_MODEL_CONFIG__OVERRIDES__BASE_URL: https://openrouter.ai/api/v1
     DERIVER_MODEL_CONFIG__STRUCTURED_OUTPUT_MODE: json_object
 
     # ==================================================
-    # Summary → OpenRouter
+    # Summary → OpenRouter (Qwen3.7 Plus)
     # ==================================================
     SUMMARY_MODEL_CONFIG__TRANSPORT: openai
-    SUMMARY_MODEL_CONFIG__MODEL: z-ai/glm-5.2
+    SUMMARY_MODEL_CONFIG__MODEL: qwen/qwen3.7-plus
     SUMMARY_MODEL_CONFIG__OVERRIDES__BASE_URL: https://openrouter.ai/api/v1
 
     # ==================================================
-    # Dream (consolidation pass) → OpenRouter
+    # Dream (consolidation pass) → OpenRouter (Qwen3.7 Plus)
     # ==================================================
     DREAM_DEDUCTION_MODEL_CONFIG__TRANSPORT: openai
-    DREAM_DEDUCTION_MODEL_CONFIG__MODEL: z-ai/glm-5.2
+    DREAM_DEDUCTION_MODEL_CONFIG__MODEL: qwen/qwen3.7-plus
     DREAM_DEDUCTION_MODEL_CONFIG__OVERRIDES__BASE_URL: https://openrouter.ai/api/v1
     DREAM_INDUCTION_MODEL_CONFIG__TRANSPORT: openai
-    DREAM_INDUCTION_MODEL_CONFIG__MODEL: z-ai/glm-5.2
+    DREAM_INDUCTION_MODEL_CONFIG__MODEL: qwen/qwen3.7-plus
     DREAM_INDUCTION_MODEL_CONFIG__OVERRIDES__BASE_URL: https://openrouter.ai/api/v1
 
     # ==================================================
-    # Dialectic reasoning levels (minimal → max) → OpenRouter
+    # Dialectic reasoning levels (minimal → max) → OpenRouter (Qwen3.7 Plus)
     # ==================================================
     DIALECTIC_LEVELS__minimal__MODEL_CONFIG__TRANSPORT: openai
-    DIALECTIC_LEVELS__minimal__MODEL_CONFIG__MODEL: z-ai/glm-5.2
+    DIALECTIC_LEVELS__minimal__MODEL_CONFIG__MODEL: qwen/qwen3.7-plus
     DIALECTIC_LEVELS__minimal__MODEL_CONFIG__OVERRIDES__BASE_URL: https://openrouter.ai/api/v1
 
     DIALECTIC_LEVELS__low__MODEL_CONFIG__TRANSPORT: openai
-    DIALECTIC_LEVELS__low__MODEL_CONFIG__MODEL: z-ai/glm-5.2
+    DIALECTIC_LEVELS__low__MODEL_CONFIG__MODEL: qwen/qwen3.7-plus
     DIALECTIC_LEVELS__low__MODEL_CONFIG__OVERRIDES__BASE_URL: https://openrouter.ai/api/v1
 
     DIALECTIC_LEVELS__medium__MODEL_CONFIG__TRANSPORT: openai
-    DIALECTIC_LEVELS__medium__MODEL_CONFIG__MODEL: z-ai/glm-5.2
+    DIALECTIC_LEVELS__medium__MODEL_CONFIG__MODEL: qwen/qwen3.7-plus
     DIALECTIC_LEVELS__medium__MODEL_CONFIG__OVERRIDES__BASE_URL: https://openrouter.ai/api/v1
 
     DIALECTIC_LEVELS__high__MODEL_CONFIG__TRANSPORT: openai
-    DIALECTIC_LEVELS__high__MODEL_CONFIG__MODEL: z-ai/glm-5.2
+    DIALECTIC_LEVELS__high__MODEL_CONFIG__MODEL: qwen/qwen3.7-plus
     DIALECTIC_LEVELS__high__MODEL_CONFIG__OVERRIDES__BASE_URL: https://openrouter.ai/api/v1
 
     DIALECTIC_LEVELS__max__MODEL_CONFIG__TRANSPORT: openai
-    DIALECTIC_LEVELS__max__MODEL_CONFIG__MODEL: z-ai/glm-5.2
+    DIALECTIC_LEVELS__max__MODEL_CONFIG__MODEL: qwen/qwen3.7-plus
     DIALECTIC_LEVELS__max__MODEL_CONFIG__OVERRIDES__BASE_URL: https://openrouter.ai/api/v1
 
     # ==================================================
